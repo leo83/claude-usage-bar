@@ -36,13 +36,19 @@ struct BarSpec {
     let resetsAt: Date?
 
     /// True when this limit fully blocks work (hit/exceeded), not merely warning.
+    ///
+    /// Blocking means the limit is actually exhausted (`percent >= 100`). The
+    /// `severity` ladder tops out at `critical`, which the API reports well
+    /// before exhaustion (≈90%) — that is a strong *warning*, not a block, so
+    /// it must not trigger the "лимит исчерпан" countdown. Only an explicit
+    /// exceeded/blocked severity (should it ever appear) also blocks.
     var isBlocking: Bool {
         if percent >= 100 { return true }
         switch severity.lowercased() {
-        case "normal", "warning", "":
-            return false
-        default:   // critical / blocked / exceeded / over_limit / …
+        case "exceeded", "over_limit", "blocked", "exhausted":
             return true
+        default:   // normal / warning / critical / "" → not blocking
+            return false
         }
     }
 }

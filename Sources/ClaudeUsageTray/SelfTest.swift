@@ -35,6 +35,12 @@ enum SelfTest {
             // isBlocking rules.
             let blocked = BarSpec(label: "x", letter: "f", percent: 100, severity: "critical", resetsAt: nil)
             precondition(blocked.isBlocking, "percent 100 / critical must block")
+            // critical is the top *warning* tier (~90%), NOT exhaustion — it
+            // must not trigger the "лимит исчерпан" countdown.
+            let critical90 = BarSpec(label: "x", letter: "f", percent: 90, severity: "critical", resetsAt: nil)
+            precondition(!critical90.isBlocking, "critical at 90% must NOT block")
+            let exceeded = BarSpec(label: "x", letter: "f", percent: 95, severity: "exceeded", resetsAt: nil)
+            precondition(exceeded.isBlocking, "explicit exceeded severity must block")
 
             // Rendering smoke test — rasterize to run the draw handler (knockout
             // letters, sparkle, countdown text) in every mode without crashing.
