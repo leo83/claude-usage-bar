@@ -13,6 +13,16 @@ rate limits. Hover for a detailed breakdown (percent + reset time), click for a
 menu with the same details plus actions. Colors shift green → orange → red as a
 limit fills up.
 
+## Screenshots
+
+The three live bars in the menu bar (the leftmost icon, with `s` / `w` / `f` letters):
+
+![Menu-bar bars](docs/menubar.png)
+
+Click for the full `/usage`-style breakdown and actions:
+
+![Click menu](docs/menu.png)
+
 ```
  menu bar:  ▁ ▄ █        ← session (5h) · week (all) · week (model)
                 │
