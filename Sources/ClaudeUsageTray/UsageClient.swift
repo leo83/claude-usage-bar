@@ -14,11 +14,27 @@ enum UsageError: Error, LocalizedError {
         case .unauthorized:
             return "Токен истёк или недействителен (401). Откройте Claude Code, чтобы обновить сессию."
         case .http(let code):
+            if code == 429 { return "Слишком много запросов (429)" }
             return "HTTP \(code)"
         case .network(let msg):
             return "Сеть: \(msg)"
         case .decode(let msg):
             return "Ошибка разбора ответа: \(msg)"
+        }
+    }
+
+    /// Transient errors (rate limit / server / network) don't invalidate the
+    /// last successful reading — we keep showing it, marked stale, and recover
+    /// on the next poll. Actionable errors (`noToken`/`unauthorized`) must stay
+    /// prominent so the user knows to reopen Claude Code.
+    var isTransient: Bool {
+        switch self {
+        case .http(let code):
+            return code == 429 || (500...599).contains(code)
+        case .network:
+            return true
+        case .noToken, .unauthorized, .decode:
+            return false
         }
     }
 }

@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var minuteTimer: Timer?
     private var lastBars: [BarSpec] = []
+    private var lastFetch: Date?
+    private var currentStale: Stale?
     private var settingsController: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -16,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters)
         statusItem.button?.toolTip = "Claude usage — загрузка…"
 
-        buildMenu(bars: [], error: nil)
+        buildMenu(bars: [], error: nil, stale: nil)
         NotificationCenter.default.addObserver(
             self, selector: #selector(settingsChanged),
             name: .settingsChanged, object: nil
@@ -28,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Ticks the blocking countdown once a minute, independent of polling.
         minuteTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             guard let self, !self.lastBars.isEmpty else { return }
-            self.renderIcon(bars: self.lastBars)
+            self.renderIcon(bars: self.lastBars, stale: self.currentStale)
         }
     }
 
@@ -56,24 +58,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .success(let limits):
                 let bars = UsageMapper.bars(from: limits)
                 self.lastBars = bars
-                self.renderIcon(bars: bars)
-                self.buildMenu(bars: bars, error: nil)
+                self.lastFetch = Date()
+                self.currentStale = nil
+                self.renderIcon(bars: bars, stale: nil)
+                self.buildMenu(bars: bars, error: nil, stale: nil)
             case .failure(let error):
-                self.lastBars = []
-                self.statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters)
-                self.statusItem.button?.toolTip = "Claude usage — \(error.localizedDescription)"
-                self.buildMenu(bars: [], error: error)
+                // Transient errors keep the last good reading visible (marked
+                // stale) instead of blanking perfectly recent data.
+                if error.isTransient, !self.lastBars.isEmpty {
+                    let stale: Stale = (error: error, since: self.lastFetch)
+                    self.currentStale = stale
+                    self.renderIcon(bars: self.lastBars, stale: stale)
+                    self.buildMenu(bars: self.lastBars, error: nil, stale: stale)
+                } else {
+                    self.lastBars = []
+                    self.currentStale = nil
+                    self.statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters)
+                    self.statusItem.button?.toolTip = "Claude usage — \(error.localizedDescription)"
+                    self.buildMenu(bars: [], error: error, stale: nil)
+                }
             }
         }
     }
 
+    /// A last-good reading kept on screen after a transient fetch failure.
+    typealias Stale = (error: UsageError, since: Date?)
+
     /// Sets the status-item image + tooltip from bars, showing a blocking
     /// countdown instead of the bars when a limit fully blocks work.
-    private func renderIcon(bars: [BarSpec]) {
+    private func renderIcon(bars: [BarSpec], stale: Stale?) {
         let blockingReset = soonestBlockingReset(bars)
         let countdown = blockingReset.map { compactCountdown(to: $0) }
         statusItem.button?.image = BarsRenderer.image(for: bars, monochrome: Settings.monochrome, showLetters: Settings.showLetters, countdown: countdown)
-        statusItem.button?.toolTip = tooltip(for: bars, blockingReset: blockingReset)
+        statusItem.button?.toolTip = tooltip(for: bars, blockingReset: blockingReset, stale: stale)
     }
 
     // MARK: - Countdown helpers
@@ -99,10 +116,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return h > 0 ? "\(h)ч \(m)м" : "\(m)м"
     }
 
+    /// "данные от 18:42 · Слишком много запросов (429)" — one line explaining
+    /// that the bars are the last successful reading, not live.
+    private func staleNote(_ stale: Stale) -> String {
+        let when = stale.since.map { "данные от \(Self.timeFormatter.string(from: $0))" } ?? "нет свежих данных"
+        return "\(when) · \(stale.error.localizedDescription)"
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ru_RU")
+        f.setLocalizedDateFormatFromTemplate("HH:mm")
+        return f
+    }()
+
     // MARK: - Tooltip (hover)
 
-    private func tooltip(for bars: [BarSpec], blockingReset: Date?) -> String {
+    private func tooltip(for bars: [BarSpec], blockingReset: Date?, stale: Stale?) -> String {
         var lines = ["Claude usage"]
+        if let stale = stale {
+            lines.append("⚠️ \(staleNote(stale))")
+        }
         if let reset = blockingReset {
             lines.append("⛔ Лимит исчерпан · разблокировка через \(humanCountdown(to: reset))")
         }
@@ -128,8 +162,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Menu
 
-    private func buildMenu(bars: [BarSpec], error: UsageError?) {
+    private func buildMenu(bars: [BarSpec], error: UsageError?, stale: Stale?) {
         let menu = NSMenu()
+
+        if let stale = stale {
+            let item = NSMenuItem(title: "⚠️ \(staleNote(stale))", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
 
         if let error = error {
             let item = NSMenuItem(title: error.localizedDescription, action: nil, keyEquivalent: "")

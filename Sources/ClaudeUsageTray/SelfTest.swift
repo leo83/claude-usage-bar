@@ -42,6 +42,15 @@ enum SelfTest {
             let exceeded = BarSpec(label: "x", letter: "f", percent: 95, severity: "exceeded", resetsAt: nil)
             precondition(exceeded.isBlocking, "explicit exceeded severity must block")
 
+            // Error classification: transient errors keep the last reading;
+            // actionable ones must surface.
+            precondition(UsageError.http(429).isTransient, "429 is transient")
+            precondition(UsageError.http(503).isTransient, "5xx is transient")
+            precondition(UsageError.network("x").isTransient, "network is transient")
+            precondition(!UsageError.unauthorized.isTransient, "401 must stay prominent")
+            precondition(!UsageError.noToken.isTransient, "no-token must stay prominent")
+            precondition(UsageError.http(429).localizedDescription.contains("429"), "429 has a message")
+
             // Rendering smoke test — rasterize to run the draw handler (knockout
             // letters, sparkle, countdown text) in every mode without crashing.
             for mono in [true, false] {

@@ -20,8 +20,11 @@ probe: build
 app:
 	bash scripts/bundle.sh
 
-# Build the bundle and copy it to /Applications
+# Build the bundle and copy it to /Applications.
+# Kill any running instance first — `open -a` only *activates* an already-running
+# accessory app, so without this the old binary keeps running after reinstall.
 install: app
+	-killall ClaudeUsageTray 2>/dev/null || true
 	rm -rf /Applications/ClaudeUsageTray.app
 	cp -R .build/ClaudeUsageTray.app /Applications/
 	@echo "Установлено: /Applications/ClaudeUsageTray.app  (open -a ClaudeUsageTray)"
