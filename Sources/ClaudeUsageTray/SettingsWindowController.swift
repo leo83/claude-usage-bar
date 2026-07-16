@@ -6,6 +6,7 @@ final class SettingsWindowController: NSWindowController {
     private let colorCheckbox = NSButton(checkboxWithTitle: "Цветные столбики (иначе чёрно-белые)", target: nil, action: nil)
     private let lettersCheckbox = NSButton(checkboxWithTitle: "Показывать буквы в столбиках (s / w / f)", target: nil, action: nil)
     private let iconCheckbox = NSButton(checkboxWithTitle: "Показывать значок Claude", target: nil, action: nil)
+    private let copyBuildButton = NSButton(title: "Копировать", target: nil, action: nil)
     private let proxyField = NSTextField()
     private let intervalField = NSTextField()
 
@@ -61,7 +62,8 @@ final class SettingsWindowController: NSWindowController {
         buildValue.isSelectable = true
         buildValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         buildValue.textColor = .secondaryLabelColor
-        let copyBuildButton = NSButton(title: "Копировать", target: self, action: #selector(copyBuild))
+        copyBuildButton.target = self
+        copyBuildButton.action = #selector(copyBuild)
         copyBuildButton.controlSize = .small
         copyBuildButton.bezelStyle = .rounded
         let buildRow = NSStackView(views: [buildValue, copyBuildButton])
@@ -154,6 +156,10 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func copyBuild() {
         BuildInfo.copyHashToPasteboard()
+        copyBuildButton.title = "Скопировано ✓"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.copyBuildButton.title = "Копировать"
+        }
     }
 
     @objc private func proxyToggled() {
