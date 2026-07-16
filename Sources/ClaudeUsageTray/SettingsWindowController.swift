@@ -55,6 +55,19 @@ final class SettingsWindowController: NSWindowController {
         saveButton.keyEquivalent = "\r"
         let cancelButton = NSButton(title: "Закрыть", target: self, action: #selector(closeWindow))
 
+        // Build stamp: selectable hash + copy button.
+        let buildLabel = makeLabel("Сборка:")
+        let buildValue = NSTextField(labelWithString: BuildInfo.display)
+        buildValue.isSelectable = true
+        buildValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        buildValue.textColor = .secondaryLabelColor
+        let copyBuildButton = NSButton(title: "Копировать", target: self, action: #selector(copyBuild))
+        copyBuildButton.controlSize = .small
+        copyBuildButton.bezelStyle = .rounded
+        let buildRow = NSStackView(views: [buildValue, copyBuildButton])
+        buildRow.orientation = .horizontal
+        buildRow.spacing = 8
+
         let grid = NSGridView(views: [
             [NSGridCell.emptyContentView, proxyCheckbox],
             [proxyLabel, proxyField],
@@ -62,6 +75,7 @@ final class SettingsWindowController: NSWindowController {
             [NSGridCell.emptyContentView, iconCheckbox],
             [NSGridCell.emptyContentView, colorCheckbox],
             [NSGridCell.emptyContentView, lettersCheckbox],
+            [buildLabel, buildRow],
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
         grid.rowAlignment = .firstBaseline
@@ -69,8 +83,8 @@ final class SettingsWindowController: NSWindowController {
         grid.columnSpacing = 8
         grid.column(at: 0).xPlacement = .trailing   // labels right-aligned
         grid.column(at: 1).xPlacement = .fill        // fields stretch → aligned edges
-        // Checkboxes: keep them left-aligned (not stretched) in the input column.
-        for row in [0, 3, 4] {
+        // Checkboxes + build row: keep left-aligned (not stretched) in the input column.
+        for row in [0, 3, 4, 6] {
             grid.cell(atColumnIndex: 1, rowIndex: row).xPlacement = .leading
         }
 
@@ -136,6 +150,10 @@ final class SettingsWindowController: NSWindowController {
 
     private func updateProxyFieldsEnabled() {
         proxyField.isEnabled = proxyCheckbox.state == .on
+    }
+
+    @objc private func copyBuild() {
+        BuildInfo.copyHashToPasteboard()
     }
 
     @objc private func proxyToggled() {

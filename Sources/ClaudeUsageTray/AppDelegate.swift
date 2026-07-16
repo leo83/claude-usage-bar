@@ -210,10 +210,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(loginItem)
 
         menu.addItem(.separator())
+
+        let build = NSMenuItem(
+            title: "Сборка \(BuildInfo.display) — копировать",
+            action: #selector(copyBuild), keyEquivalent: ""
+        )
+        build.target = self
+        build.toolTip = "Нажмите, чтобы скопировать git-хэш сборки"
+        menu.addItem(build)
+
         menu.addItem(withTitle: "Выход", action: #selector(quit), keyEquivalent: "q")
             .target = self
 
         statusItem.menu = menu
+    }
+
+    @objc private func copyBuild() {
+        BuildInfo.copyHashToPasteboard()
     }
 
     // MARK: - Actions
