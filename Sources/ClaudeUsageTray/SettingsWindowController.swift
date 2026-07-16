@@ -12,7 +12,7 @@ final class SettingsWindowController: NSWindowController {
 
     convenience init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 350),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
@@ -50,7 +50,8 @@ final class SettingsWindowController: NSWindowController {
             "Если поле пустое, прокси автоматически берётся из окружения (login-shell).")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .secondaryLabelColor
-        hint.translatesAutoresizingMaskIntoConstraints = false
+        hint.preferredMaxLayoutWidth = 300
+        hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let saveButton = NSButton(title: "Сохранить", target: self, action: #selector(save))
         saveButton.keyEquivalent = "\r"
@@ -73,6 +74,7 @@ final class SettingsWindowController: NSWindowController {
         let grid = NSGridView(views: [
             [NSGridCell.emptyContentView, proxyCheckbox],
             [proxyLabel, proxyField],
+            [NSGridCell.emptyContentView, hint],
             [intervalLabel, intervalField],
             [NSGridCell.emptyContentView, iconCheckbox],
             [NSGridCell.emptyContentView, colorCheckbox],
@@ -86,9 +88,11 @@ final class SettingsWindowController: NSWindowController {
         grid.column(at: 0).xPlacement = .trailing   // labels right-aligned
         grid.column(at: 1).xPlacement = .fill        // fields stretch → aligned edges
         // Checkboxes + build row: keep left-aligned (not stretched) in the input column.
-        for row in [0, 3, 4, 6] {
+        for row in [0, 4, 5, 6, 7] {
             grid.cell(atColumnIndex: 1, rowIndex: row).xPlacement = .leading
         }
+        // The proxy hint row uses top alignment (multiline) rather than baseline.
+        grid.row(at: 2).rowAlignment = .none
 
         let buttons = NSStackView(views: [cancelButton, saveButton])
         buttons.orientation = .horizontal
@@ -96,7 +100,6 @@ final class SettingsWindowController: NSWindowController {
         buttons.translatesAutoresizingMaskIntoConstraints = false
 
         content.addSubview(grid)
-        content.addSubview(hint)
         content.addSubview(buttons)
 
         NSLayoutConstraint.activate([
@@ -105,10 +108,6 @@ final class SettingsWindowController: NSWindowController {
             grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
 
             proxyField.widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
-
-            hint.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
-            hint.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-            hint.topAnchor.constraint(equalTo: grid.bottomAnchor, constant: 12),
 
             buttons.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
             buttons.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),

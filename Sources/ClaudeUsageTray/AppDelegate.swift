@@ -10,7 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastFetch: Date?
     private var currentStale: Stale?
     private var settingsController: SettingsWindowController?
-    private weak var buildMenuItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Settings.adoptEnvProxyIfEmpty()
@@ -211,33 +210,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(loginItem)
 
         menu.addItem(.separator())
-
-        let build = NSMenuItem(
-            title: buildMenuTitle,
-            action: #selector(copyBuild), keyEquivalent: ""
-        )
-        build.target = self
-        build.toolTip = "Нажмите, чтобы скопировать git-хэш сборки"
-        menu.addItem(build)
-        buildMenuItem = build
-
         menu.addItem(withTitle: "Выход", action: #selector(quit), keyEquivalent: "q")
             .target = self
 
         statusItem.menu = menu
-    }
-
-    private var buildMenuTitle: String { "Сборка \(BuildInfo.display) — копировать" }
-
-    @objc private func copyBuild() {
-        BuildInfo.copyHashToPasteboard()
-        // Confirmation: the menu closes on click, so update the persisted item —
-        // visible if reopened before the next menu rebuild — then revert.
-        buildMenuItem?.title = "✓ Скопировано — \(BuildInfo.display)"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            guard let self else { return }
-            self.buildMenuItem?.title = self.buildMenuTitle
-        }
     }
 
     // MARK: - Actions
