@@ -9,10 +9,15 @@ final class SettingsWindowController: NSWindowController {
     private let copyBuildButton = NSButton(title: "Копировать", target: nil, action: nil)
     private let proxyField = NSTextField()
     private let intervalField = NSTextField()
+    private let timeZonePopup = NSPopUpButton()
+
+    /// System-zone sentinel + all known identifiers, in popup order.
+    private static let systemZoneTitle = "Системный (локальный)"
+    private static let zoneIdentifiers = TimeZone.knownTimeZoneIdentifiers.sorted()
 
     convenience init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 350),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 400),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
@@ -32,6 +37,11 @@ final class SettingsWindowController: NSWindowController {
 
         let proxyLabel = makeLabel("Прокси URL:")
         let intervalLabel = makeLabel("Интервал (сек):")
+        let tzLabel = makeLabel("Часовой пояс:")
+
+        timeZonePopup.addItem(withTitle: Self.systemZoneTitle)
+        timeZonePopup.menu?.addItem(.separator())
+        timeZonePopup.addItems(withTitles: Self.zoneIdentifiers)
 
         proxyField.placeholderString = "http://user:pass@host:3128"
         intervalField.placeholderString = "60"
@@ -79,6 +89,7 @@ final class SettingsWindowController: NSWindowController {
             [NSGridCell.emptyContentView, iconCheckbox],
             [NSGridCell.emptyContentView, colorCheckbox],
             [NSGridCell.emptyContentView, lettersCheckbox],
+            [tzLabel, timeZonePopup],
             [buildLabel, buildRow],
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
@@ -87,8 +98,8 @@ final class SettingsWindowController: NSWindowController {
         grid.columnSpacing = 8
         grid.column(at: 0).xPlacement = .trailing   // labels right-aligned
         grid.column(at: 1).xPlacement = .fill        // fields stretch → aligned edges
-        // Checkboxes + build row: keep left-aligned (not stretched) in the input column.
-        for row in [0, 4, 5, 6, 7] {
+        // Checkboxes / popup / build row: keep left-aligned (not stretched).
+        for row in [0, 4, 5, 6, 7, 8] {
             grid.cell(atColumnIndex: 1, rowIndex: row).xPlacement = .leading
         }
         // The proxy hint row uses top alignment (multiline) rather than baseline.
@@ -130,6 +141,12 @@ final class SettingsWindowController: NSWindowController {
         iconCheckbox.state = Settings.showIcon ? .on : .off
         proxyField.stringValue = Settings.proxyURL
         intervalField.stringValue = String(Settings.pollSeconds)
+        let tzID = Settings.displayTimeZoneID
+        if tzID.isEmpty || timeZonePopup.item(withTitle: tzID) == nil {
+            timeZonePopup.selectItem(withTitle: Self.systemZoneTitle)
+        } else {
+            timeZonePopup.selectItem(withTitle: tzID)
+        }
         updateProxyFieldsEnabled()
 
         // Don't leave the (long) proxy value fully selected & scrolled under the
@@ -174,6 +191,8 @@ final class SettingsWindowController: NSWindowController {
         if let interval = Int(intervalField.stringValue.trimmingCharacters(in: .whitespaces)) {
             Settings.pollSeconds = interval
         }
+        let tzTitle = timeZonePopup.titleOfSelectedItem ?? Self.systemZoneTitle
+        Settings.displayTimeZoneID = (tzTitle == Self.systemZoneTitle) ? "" : tzTitle
         NotificationCenter.default.post(name: .settingsChanged, object: nil)
         closeWindow()
     }

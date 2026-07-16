@@ -17,6 +17,7 @@ enum Settings {
         static let monochrome = "monochrome"
         static let showLetters = "showLetters"
         static let showIcon = "showIcon"
+        static let displayTimeZone = "displayTimeZone"
     }
 
     /// Icon style: monochrome template (default) vs colored severity bars.
@@ -35,6 +36,20 @@ enum Settings {
     static var showIcon: Bool {
         get { d.object(forKey: Key.showIcon) == nil ? true : d.bool(forKey: Key.showIcon) }
         set { d.set(newValue, forKey: Key.showIcon) }
+    }
+
+    /// TZ identifier for displaying reset times; empty = system local zone.
+    static var displayTimeZoneID: String {
+        get { d.string(forKey: Key.displayTimeZone) ?? "" }
+        set { d.set(newValue, forKey: Key.displayTimeZone) }
+    }
+
+    /// Effective zone for reset display: the chosen one, else the live local zone.
+    static var displayTimeZone: TimeZone {
+        if !displayTimeZoneID.isEmpty, let tz = TimeZone(identifier: displayTimeZoneID) {
+            return tz
+        }
+        return .autoupdatingCurrent
     }
 
     static var proxyEnabled: Bool {

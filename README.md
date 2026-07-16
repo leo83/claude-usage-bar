@@ -23,6 +23,11 @@ Click for the full `/usage`-style breakdown and actions:
 
 ![Click menu](docs/menu.png)
 
+When a limit is fully exhausted, the bars are replaced by a countdown to
+unblock (`H:MM`, rounded up so the last minute still reads `0:01`):
+
+![Limit reached — countdown to unblock](docs/blocked.png)
+
 ```
  menu bar:  ▁ ▄ █        ← session (5h) · week (all) · week (model)
                 │

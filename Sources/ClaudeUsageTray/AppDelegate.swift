@@ -103,29 +103,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .min()
     }
 
-    /// Compact `H:MM` for the icon.
+    /// Compact `H:MM` for the icon. Rounds minutes UP so an active lockout never
+    /// reads `0:00` while time still remains — the last minute shows `0:01`.
     private func compactCountdown(to date: Date) -> String {
-        let secs = max(0, Int(date.timeIntervalSinceNow))
-        return String(format: "%d:%02d", secs / 3600, (secs % 3600) / 60)
+        let totalMin = ceilMinutes(to: date)
+        return String(format: "%d:%02d", totalMin / 60, totalMin % 60)
     }
 
-    /// Human `Xч Yм` for tooltip / menu.
+    /// Human `Xч Yм` for tooltip / menu (minutes rounded up, see compactCountdown).
     private func humanCountdown(to date: Date) -> String {
-        let secs = max(0, Int(date.timeIntervalSinceNow))
-        let h = secs / 3600, m = (secs % 3600) / 60
+        let totalMin = ceilMinutes(to: date)
+        let h = totalMin / 60, m = totalMin % 60
         return h > 0 ? "\(h)ч \(m)м" : "\(m)м"
+    }
+
+    /// Whole minutes remaining, rounded up (0 only once the instant has passed).
+    private func ceilMinutes(to date: Date) -> Int {
+        let secs = max(0, Int(date.timeIntervalSinceNow.rounded(.up)))
+        return (secs + 59) / 60
     }
 
     /// "данные от 18:42 · Слишком много запросов (429)" — one line explaining
     /// that the bars are the last successful reading, not live.
     private func staleNote(_ stale: Stale) -> String {
-        let when = stale.since.map { "данные от \(Self.timeFormatter.string(from: $0))" } ?? "нет свежих данных"
+        let when = stale.since.map { "данные от \(formatClock($0))" } ?? "нет свежих данных"
         return "\(when) · \(stale.error.localizedDescription)"
+    }
+
+    /// Reset date/time in the user-chosen (or system) zone — see Settings.displayTimeZone.
+    private func formatReset(_ date: Date) -> String {
+        Self.resetFormatter.timeZone = Settings.displayTimeZone
+        return Self.resetFormatter.string(from: date)
+    }
+
+    private func formatClock(_ date: Date) -> String {
+        Self.timeFormatter.timeZone = Settings.displayTimeZone
+        return Self.timeFormatter.string(from: date)
     }
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ru_RU")
+        // autoupdatingCurrent: reflect the live system zone. A plain `static`
+        // formatter snapshots the zone at first use; when the app is launched
+        // as a login item before the TZ is resolved, that snapshot is GMT and
+        // reset times would show in UTC for the whole session.
+        f.timeZone = .autoupdatingCurrent
         f.setLocalizedDateFormatFromTemplate("HH:mm")
         return f
     }()
@@ -145,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var line = "• \(bar.label): \(pct)%"
             if bar.isBlocking { line += " ⛔" }
             if let reset = bar.resetsAt {
-                line += "  · сброс \(Self.resetFormatter.string(from: reset))"
+                line += "  · сброс \(formatReset(reset))"
             }
             lines.append(line)
         }
@@ -156,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let resetFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ru_RU")
+        f.timeZone = .autoupdatingCurrent   // live local zone, not a frozen snapshot
         f.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
         return f
     }()
@@ -186,7 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if bar.isBlocking, let reset = bar.resetsAt {
                     title += "  ·  ⛔ разблокировка через \(humanCountdown(to: reset))"
                 } else if let reset = bar.resetsAt {
-                    title += "  ·  сброс \(Self.resetFormatter.string(from: reset))"
+                    title += "  ·  сброс \(formatReset(reset))"
                 }
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.isEnabled = false
