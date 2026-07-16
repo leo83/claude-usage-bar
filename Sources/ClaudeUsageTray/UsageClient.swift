@@ -53,6 +53,41 @@ final class UsageClient {
         attempt(retriesLeft: Self.maxRetries, completion: completion)
     }
 
+    /// Single attempt, no retry — used by diagnostics to measure the raw
+    /// per-request failure rate (e.g. CFNetwork 310 proxy CONNECT failures).
+    func fetchOnce(completion: @escaping (Result<[Limit], UsageError>) -> Void) {
+        attempt(retriesLeft: 0, completion: completion)
+    }
+
+    /// Human-readable network error, instead of the raw Cocoa sentence
+    /// ("The operation couldn't be completed. (kCFErrorDomainCFNetwork error 310.)").
+    /// Keeps a compact code in parentheses so it stays diagnosable.
+    static func friendlyNetworkMessage(_ error: Error) -> String {
+        let ns = error as NSError
+        if ns.domain == (kCFErrorDomainCFNetwork as String) {
+            switch ns.code {
+            case 310, 311, 306:   // HTTP(S) proxy CONNECT failure
+                return "нет связи с прокси (\(ns.code))"
+            case 307:             // bad proxy credentials
+                return "прокси отклонил логин/пароль (307)"
+            default:
+                break
+            }
+        }
+        if ns.domain == NSURLErrorDomain {
+            switch ns.code {
+            case NSURLErrorTimedOut:            return "таймаут запроса"
+            case NSURLErrorNotConnectedToInternet: return "нет интернета"
+            case NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost:
+                return "не удаётся подключиться к серверу"
+            case NSURLErrorNetworkConnectionLost: return "соединение прервано"
+            default:
+                break
+            }
+        }
+        return ns.localizedDescription
+    }
+
     private func attempt(retriesLeft: Int, completion: @escaping (Result<[Limit], UsageError>) -> Void) {
         guard let token = Credentials.accessToken() else {
             completion(.failure(.noToken))
@@ -70,7 +105,7 @@ final class UsageClient {
         let config = URLSessionConfiguration.ephemeral
         config.waitsForConnectivity = false
         if let proxy = proxy {
-            config.connectionProxyDictionary = [
+            var proxyDict: [AnyHashable: Any] = [
                 kCFNetworkProxiesHTTPEnable as String: true,
                 kCFNetworkProxiesHTTPProxy as String: proxy.host,
                 kCFNetworkProxiesHTTPPort as String: proxy.port,
@@ -81,6 +116,14 @@ final class UsageClient {
                 "HTTPSProxy": proxy.host,
                 "HTTPSPort": proxy.port,
             ]
+            // Preemptive proxy credentials — like curl's `Proxy-Authorization`
+            // on the first CONNECT. Avoids the 407-challenge round-trip whose
+            // re-CONNECT occasionally fails as CFNetwork 310.
+            if let user = proxy.username, let pass = proxy.password {
+                proxyDict[kCFProxyUsernameKey as String] = user
+                proxyDict[kCFProxyPasswordKey as String] = pass
+            }
+            config.connectionProxyDictionary = proxyDict
         }
 
         // A delegate answers the proxy's 407 auth challenge with credentials.
@@ -101,7 +144,7 @@ final class UsageClient {
             }
 
             if let error = error {
-                deliver(.failure(.network(error.localizedDescription)))
+                deliver(.failure(.network(Self.friendlyNetworkMessage(error))))
                 return
             }
             guard let http = response as? HTTPURLResponse else {

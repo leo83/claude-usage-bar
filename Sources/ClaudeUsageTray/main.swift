@@ -13,6 +13,14 @@ if CommandLine.arguments.contains("--probe") {
     exit(0)
 }
 
+// Diagnostic: repeat the exact request N times, report the raw 310 rate.
+// Usage: ClaudeUsageTray --probe-loop [N]
+if let idx = CommandLine.arguments.firstIndex(of: "--probe-loop") {
+    let n = (idx + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[idx + 1]) : nil) ?? 20
+    SelfTest.probeLoop(count: n)
+    exit(0)
+}
+
 // Menu-bar-only agent app: no Dock icon, no main menu bar.
 let app = NSApplication.shared
 let delegate = AppDelegate()

@@ -111,4 +111,41 @@ enum SelfTest {
             RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.2))
         }
     }
+
+    /// Repeats the app's exact single request N times (no retry) and reports the
+    /// raw outcome mix — specifically how many hit CFNetwork 310 (HTTPS proxy
+    /// CONNECT failure). This is the before/after gate for proxy-connection fixes.
+    static func probeLoop(count: Int) {
+        Settings.adoptEnvProxyIfEmpty()
+        if let proxy = Settings.activeProxy {
+            print("probe-loop: proxy = \(proxy.host):\(proxy.port) auth=\(proxy.username != nil)")
+        } else {
+            print("probe-loop: proxy = none")
+        }
+        let client = UsageClient()
+        var conn = 0, e310 = 0, otherNet = 0
+        for i in 1...count {
+            var done = false
+            client.fetchOnce { result in
+                switch result {
+                case .success:
+                    conn += 1; print("  #\(i): OK (connected)")
+                case .failure(let err):
+                    if case .network(let msg) = err {
+                        if msg.contains("310") { e310 += 1; print("  #\(i): 310 proxy CONNECT fail") }
+                        else { otherNet += 1; print("  #\(i): net — \(msg)") }
+                    } else {
+                        conn += 1; print("  #\(i): connected (HTTP: \(err.localizedDescription))")
+                    }
+                }
+                done = true
+            }
+            let deadline = Date().addingTimeInterval(25)
+            while !done && Date() < deadline {
+                RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
+            }
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(1.0))   // spacing
+        }
+        print("probe-loop: connected=\(conn) e310=\(e310) otherNet=\(otherNet) of \(count)")
+    }
 }
