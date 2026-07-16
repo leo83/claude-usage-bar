@@ -5,6 +5,7 @@ final class SettingsWindowController: NSWindowController {
     private let proxyCheckbox = NSButton(checkboxWithTitle: "Использовать HTTP(S)-прокси", target: nil, action: nil)
     private let colorCheckbox = NSButton(checkboxWithTitle: "Цветные столбики (иначе чёрно-белые)", target: nil, action: nil)
     private let lettersCheckbox = NSButton(checkboxWithTitle: "Показывать буквы в столбиках (s / w / f)", target: nil, action: nil)
+    private let iconCheckbox = NSButton(checkboxWithTitle: "Показывать значок Claude", target: nil, action: nil)
     private let proxyField = NSTextField()
     private let intervalField = NSTextField()
 
@@ -35,6 +36,14 @@ final class SettingsWindowController: NSWindowController {
         intervalField.placeholderString = "60"
         [proxyField, intervalField].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
 
+        // Robust single-line display for a long URL: scroll, don't wrap/clip to
+        // one glyph run. (Fixes the field rendering only the "http://" scheme.)
+        proxyField.usesSingleLineMode = true
+        proxyField.lineBreakMode = .byTruncatingTail
+        proxyField.cell?.wraps = false
+        proxyField.cell?.isScrollable = true
+        proxyField.maximumNumberOfLines = 1
+
         let hint = NSTextField(wrappingLabelWithString:
             "Формат как в HTTPS_PROXY, включая логин:пароль. Пусто = без прокси. " +
             "Если поле пустое, прокси автоматически берётся из окружения (login-shell).")
@@ -50,6 +59,7 @@ final class SettingsWindowController: NSWindowController {
             [NSGridCell.emptyContentView, proxyCheckbox],
             [proxyLabel, proxyField],
             [intervalLabel, intervalField],
+            [NSGridCell.emptyContentView, iconCheckbox],
             [NSGridCell.emptyContentView, colorCheckbox],
             [NSGridCell.emptyContentView, lettersCheckbox],
         ])
@@ -95,13 +105,33 @@ final class SettingsWindowController: NSWindowController {
         return label
     }
 
-    private func loadValues() {
+    /// Re-reads persisted settings into the fields. Called on every open so the
+    /// window always reflects the current stored state (e.g. an env-seeded proxy),
+    /// not a snapshot taken at controller-init time.
+    func loadValues() {
         proxyCheckbox.state = Settings.proxyEnabled ? .on : .off
         colorCheckbox.state = Settings.monochrome ? .off : .on
         lettersCheckbox.state = Settings.showLetters ? .on : .off
+        iconCheckbox.state = Settings.showIcon ? .on : .off
         proxyField.stringValue = Settings.proxyURL
         intervalField.stringValue = String(Settings.pollSeconds)
         updateProxyFieldsEnabled()
+
+        // Don't leave the (long) proxy value fully selected & scrolled under the
+        // field editor — that renders as a truncated "http://". Show it from the
+        // start with no selection, and keep initial focus off the text fields.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            // Disable smart-link/data detection on the shared field editor — a
+            // URL with "://" can otherwise be reinterpreted while displayed.
+            if let editor = self.window?.fieldEditor(true, for: self.proxyField) as? NSTextView {
+                editor.isAutomaticLinkDetectionEnabled = false
+                editor.isAutomaticDataDetectionEnabled = false
+                editor.isAutomaticTextReplacementEnabled = false
+            }
+            self.window?.makeFirstResponder(nil)
+            self.proxyField.needsDisplay = true
+        }
     }
 
     private func updateProxyFieldsEnabled() {
@@ -116,6 +146,7 @@ final class SettingsWindowController: NSWindowController {
         Settings.proxyEnabled = proxyCheckbox.state == .on
         Settings.monochrome = colorCheckbox.state == .off
         Settings.showLetters = lettersCheckbox.state == .on
+        Settings.showIcon = iconCheckbox.state == .on
         Settings.proxyURL = proxyField.stringValue.trimmingCharacters(in: .whitespaces)
         if let interval = Int(intervalField.stringValue.trimmingCharacters(in: .whitespaces)) {
             Settings.pollSeconds = interval

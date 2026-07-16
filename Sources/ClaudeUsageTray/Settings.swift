@@ -16,6 +16,7 @@ enum Settings {
         static let pollSeconds = "pollSeconds"
         static let monochrome = "monochrome"
         static let showLetters = "showLetters"
+        static let showIcon = "showIcon"
     }
 
     /// Icon style: monochrome template (default) vs colored severity bars.
@@ -28,6 +29,12 @@ enum Settings {
     static var showLetters: Bool {
         get { d.object(forKey: Key.showLetters) == nil ? true : d.bool(forKey: Key.showLetters) }
         set { d.set(newValue, forKey: Key.showLetters) }
+    }
+
+    /// Show the Claude sparkle mark before the bars (default true).
+    static var showIcon: Bool {
+        get { d.object(forKey: Key.showIcon) == nil ? true : d.bool(forKey: Key.showIcon) }
+        set { d.set(newValue, forKey: Key.showIcon) }
     }
 
     static var proxyEnabled: Bool {

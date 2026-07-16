@@ -54,14 +54,16 @@ enum SelfTest {
             // Rendering smoke test — rasterize to run the draw handler (knockout
             // letters, sparkle, countdown text) in every mode without crashing.
             for mono in [true, false] {
-                for letters in [true, false] {
-                    precondition(BarsRenderer.image(for: bars, monochrome: mono, showLetters: letters, countdown: nil)
-                        .tiffRepresentation != nil, "bars render \(mono)/\(letters)")
+                for icon in [true, false] {
+                    for letters in [true, false] {
+                        precondition(BarsRenderer.image(for: bars, monochrome: mono, showLetters: letters, showIcon: icon, countdown: nil)
+                            .tiffRepresentation != nil, "bars render \(mono)/\(letters)/icon=\(icon)")
+                    }
+                    precondition(BarsRenderer.image(for: bars, monochrome: mono, showLetters: true, showIcon: icon, countdown: "1:23")
+                        .tiffRepresentation != nil, "countdown render \(mono)/icon=\(icon)")
+                    precondition(BarsRenderer.placeholder(monochrome: mono, showLetters: true, showIcon: icon)
+                        .tiffRepresentation != nil, "placeholder render \(mono)/icon=\(icon)")
                 }
-                precondition(BarsRenderer.image(for: bars, monochrome: mono, showLetters: true, countdown: "1:23")
-                    .tiffRepresentation != nil, "countdown render \(mono)")
-                precondition(BarsRenderer.placeholder(monochrome: mono, showLetters: true)
-                    .tiffRepresentation != nil, "placeholder render \(mono)")
             }
             print("selftest: render OK (bars + countdown + placeholder, mono & colored)")
             print("selftest: OK")
@@ -72,6 +74,13 @@ enum SelfTest {
 
     /// Live end-to-end probe against the real endpoint (no GUI).
     static func probe() {
+        // Raw settings as this process's UserDefaults sees them (no password leak).
+        let rawURL = Settings.proxyURL
+        let scheme = rawURL.contains("://") ? String(rawURL.prefix(while: { $0 != "/" })) : "(none)"
+        let hostTail = rawURL.components(separatedBy: "@").last ?? ""
+        print("probe: bundleID = \(Bundle.main.bundleIdentifier ?? "nil")")
+        print("probe: proxyEnabled = \(Settings.proxyEnabled), proxyURL.len = \(rawURL.count), scheme = \(scheme), hostTail = \(hostTail)")
+
         Settings.adoptEnvProxyIfEmpty()
         let tok = Credentials.accessToken()
         print("probe: token present = \(tok != nil), length = \(tok?.count ?? -1)")

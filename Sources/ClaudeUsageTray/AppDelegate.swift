@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Settings.adoptEnvProxyIfEmpty()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters)
+        statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters, showIcon: Settings.showIcon)
         statusItem.button?.toolTip = "Claude usage — загрузка…"
 
         buildMenu(bars: [], error: nil, stale: nil)
@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     self.lastBars = []
                     self.currentStale = nil
-                    self.statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters)
+                    self.statusItem.button?.image = BarsRenderer.placeholder(monochrome: Settings.monochrome, showLetters: Settings.showLetters, showIcon: Settings.showIcon)
                     self.statusItem.button?.toolTip = "Claude usage — \(error.localizedDescription)"
                     self.buildMenu(bars: [], error: error, stale: nil)
                 }
@@ -89,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func renderIcon(bars: [BarSpec], stale: Stale?) {
         let blockingReset = soonestBlockingReset(bars)
         let countdown = blockingReset.map { compactCountdown(to: $0) }
-        statusItem.button?.image = BarsRenderer.image(for: bars, monochrome: Settings.monochrome, showLetters: Settings.showLetters, countdown: countdown)
+        statusItem.button?.image = BarsRenderer.image(for: bars, monochrome: Settings.monochrome, showLetters: Settings.showLetters, showIcon: Settings.showIcon, countdown: countdown)
         statusItem.button?.toolTip = tooltip(for: bars, blockingReset: blockingReset, stale: stale)
     }
 
@@ -222,6 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsController == nil {
             settingsController = SettingsWindowController()
         }
+        settingsController?.loadValues()
         NSApp.activate(ignoringOtherApps: true)
         settingsController?.showWindow(nil)
         settingsController?.window?.makeKeyAndOrderFront(nil)

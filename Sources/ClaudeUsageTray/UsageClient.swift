@@ -43,7 +43,17 @@ enum UsageError: Error, LocalizedError {
 final class UsageClient {
     static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
+    /// Number of extra attempts on a transient failure (network/proxy/5xx/429).
+    /// Corporate proxies drop the CONNECT tunnel intermittently (CFNetwork 310);
+    /// a quick retry usually succeeds, so a single blip never reaches the UI.
+    private static let maxRetries = 2
+    private static let retryDelay: TimeInterval = 1.5
+
     func fetch(completion: @escaping (Result<[Limit], UsageError>) -> Void) {
+        attempt(retriesLeft: Self.maxRetries, completion: completion)
+    }
+
+    private func attempt(retriesLeft: Int, completion: @escaping (Result<[Limit], UsageError>) -> Void) {
         guard let token = Credentials.accessToken() else {
             completion(.failure(.noToken))
             return
@@ -77,9 +87,16 @@ final class UsageClient {
         let delegate = ProxyAuthDelegate(username: proxy?.username, password: proxy?.password)
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
-        let task = session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
             defer { session.finishTasksAndInvalidate() }   // release the delegate
             let deliver: (Result<[Limit], UsageError>) -> Void = { result in
+                // Retry transient failures (proxy/network/5xx/429) before surfacing.
+                if case .failure(let err) = result, err.isTransient, retriesLeft > 0, let self = self {
+                    DispatchQueue.global().asyncAfter(deadline: .now() + Self.retryDelay) {
+                        self.attempt(retriesLeft: retriesLeft - 1, completion: completion)
+                    }
+                    return
+                }
                 DispatchQueue.main.async { completion(result) }
             }
 

@@ -42,22 +42,26 @@ enum BarsRenderer {
     private static var barsWidth: CGFloat {
         CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * innerGap
     }
-    private static var width: CGFloat {
-        sideInset + iconWidth + iconGap + barsWidth + sideInset
+    /// Leading offset of the bars: past the sparkle when shown, else just the inset.
+    private static func barsOriginX(showIcon: Bool) -> CGFloat {
+        showIcon ? sideInset + iconWidth + iconGap : sideInset
+    }
+    private static func width(showIcon: Bool) -> CGFloat {
+        barsOriginX(showIcon: showIcon) + barsWidth + sideInset
     }
 
     private static let countdownFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
 
     /// Main entry. When `countdown` is non-nil (a limit fully blocks work), the
     /// bars are replaced by the countdown text — red in colored mode.
-    static func image(for bars: [BarSpec], monochrome: Bool, showLetters: Bool, countdown: String?) -> NSImage {
+    static func image(for bars: [BarSpec], monochrome: Bool, showLetters: Bool, showIcon: Bool, countdown: String?) -> NSImage {
         if let countdown = countdown {
-            return renderCountdown(countdown, monochrome: monochrome)
+            return renderCountdown(countdown, monochrome: monochrome, showIcon: showIcon)
         }
-        return renderBars(for: bars, monochrome: monochrome, showLetters: showLetters)
+        return renderBars(for: bars, monochrome: monochrome, showLetters: showLetters, showIcon: showIcon)
     }
 
-    private static func renderBars(for bars: [BarSpec], monochrome: Bool, showLetters: Bool) -> NSImage {
+    private static func renderBars(for bars: [BarSpec], monochrome: Bool, showLetters: Bool, showIcon: Bool) -> NSImage {
         let fractions: [CGFloat?] = (0..<barCount).map { index in
             index < bars.count ? max(0, min(1, CGFloat(bars[index].percent / 100))) : nil
         }
@@ -67,27 +71,29 @@ enum BarsRenderer {
         let fillColors: [NSColor]? = monochrome ? nil : (0..<barCount).map { index in
             index < bars.count ? severityColor(bars[index]) : .clear
         }
-        return render(fractions: fractions, letters: letters, fillColors: fillColors)
+        return render(fractions: fractions, letters: letters, fillColors: fillColors, showIcon: showIcon)
     }
 
     /// Sparkle + countdown text (used when a limit fully blocks work).
-    private static func renderCountdown(_ text: String, monochrome: Bool) -> NSImage {
+    private static func renderCountdown(_ text: String, monochrome: Bool, showIcon: Bool) -> NSImage {
         let str = text as NSString
         let attrs: [NSAttributedString.Key: Any] = [.font: countdownFont]
         let textSize = str.size(withAttributes: attrs)
-        let w = sideInset + iconWidth + iconGap + ceil(textSize.width) + sideInset
+        let textOriginX = barsOriginX(showIcon: showIcon)
+        let w = textOriginX + ceil(textSize.width) + sideInset
         let size = NSSize(width: w, height: height)
 
         let textColor: NSColor = monochrome ? .black : .systemRed
         let iconColor = monochrome ? NSColor.black.withAlphaComponent(fillAlpha) : claudeOrange
 
         let image = NSImage(size: size, flipped: false) { _ in
-            let iconRect = NSRect(x: sideInset, y: (height - iconHeight) / 2,
-                                  width: iconWidth, height: iconHeight)
-            drawSparkle(in: iconRect, color: iconColor)
+            if showIcon {
+                let iconRect = NSRect(x: sideInset, y: (height - iconHeight) / 2,
+                                      width: iconWidth, height: iconHeight)
+                drawSparkle(in: iconRect, color: iconColor)
+            }
 
-            let origin = NSPoint(x: sideInset + iconWidth + iconGap,
-                                 y: (height - textSize.height) / 2)
+            let origin = NSPoint(x: textOriginX, y: (height - textSize.height) / 2)
             str.draw(at: origin, withAttributes: [.font: countdownFont, .foregroundColor: textColor])
             return true
         }
@@ -96,25 +102,27 @@ enum BarsRenderer {
     }
 
     /// Neutral placeholder (empty tracks + letters) before the first fetch / on error.
-    static func placeholder(monochrome: Bool, showLetters: Bool) -> NSImage {
+    static func placeholder(monochrome: Bool, showLetters: Bool, showIcon: Bool) -> NSImage {
         render(fractions: Array(repeating: nil, count: barCount),
                letters: showLetters ? ["s", "w", ""] : ["", "", ""],
-               fillColors: monochrome ? nil : [])
+               fillColors: monochrome ? nil : [], showIcon: showIcon)
     }
 
     /// `fillColors == nil` selects monochrome/template rendering.
-    private static func render(fractions: [CGFloat?], letters: [String], fillColors: [NSColor]?) -> NSImage {
+    private static func render(fractions: [CGFloat?], letters: [String], fillColors: [NSColor]?, showIcon: Bool) -> NSImage {
         let monochrome = (fillColors == nil)
-        let size = NSSize(width: width, height: height)
+        let size = NSSize(width: width(showIcon: showIcon), height: height)
         let usableHeight = height - vInset * 2
-        let barsOriginX = sideInset + iconWidth + iconGap
+        let barsOriginX = barsOriginX(showIcon: showIcon)
 
         let image = NSImage(size: size, flipped: false) { _ in
-            // Claude sparkle.
-            let iconRect = NSRect(x: sideInset, y: (height - iconHeight) / 2,
-                                  width: iconWidth, height: iconHeight)
-            let iconColor = monochrome ? NSColor.black.withAlphaComponent(fillAlpha) : claudeOrange
-            drawSparkle(in: iconRect, color: iconColor)
+            // Claude sparkle (optional).
+            if showIcon {
+                let iconRect = NSRect(x: sideInset, y: (height - iconHeight) / 2,
+                                      width: iconWidth, height: iconHeight)
+                let iconColor = monochrome ? NSColor.black.withAlphaComponent(fillAlpha) : claudeOrange
+                drawSparkle(in: iconRect, color: iconColor)
+            }
 
             for index in 0..<barCount {
                 let x = barsOriginX + CGFloat(index) * (barWidth + innerGap)
