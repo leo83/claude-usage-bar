@@ -91,7 +91,25 @@ open -a ClaudeUsageTray
 ```
 
 To launch automatically at login, use the **«Запускать при входе»** toggle in the
-menu.
+menu (built-in `SMAppService`), or set up a portable per-user LaunchAgent:
+
+```bash
+make login     # enable launch at login
+make unlogin   # disable
+```
+
+`make login` generates `~/Library/LaunchAgents/<bundle-id>.plist` from the
+installed app's identifier and path (`scripts/loginitem.sh`) — nothing
+machine-specific is stored in the repo, so forks with a different name or
+identifier work unchanged.
+
+### Uninstall
+
+```bash
+make uninstall
+```
+
+Removes launch-at-login and deletes `/Applications/ClaudeUsageTray.app`.
 
 ## Configuration
 
