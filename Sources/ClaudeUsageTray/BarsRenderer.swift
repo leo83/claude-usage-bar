@@ -16,8 +16,8 @@ enum BarsRenderer {
     private static let barWidth: CGFloat = 7
     private static let innerGap: CGFloat = 2
     private static let sideInset: CGFloat = 1
-    private static let height: CGFloat = 16
-    private static let vInset: CGFloat = 1
+    private static let height: CGFloat = 18
+    private static let vInset: CGFloat = 0
     private static let corner: CGFloat = 1.5
 
     /// Narrow (condensed) letters, Stats-style.
