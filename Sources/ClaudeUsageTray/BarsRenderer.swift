@@ -22,11 +22,11 @@ enum BarsRenderer {
 
     /// Narrow (condensed) letters, Stats-style.
     private static let letterFont: NSFont = {
-        let base = NSFont.systemFont(ofSize: 8, weight: .bold)
+        let base = NSFont.systemFont(ofSize: 9, weight: .bold)
         let descriptor = base.fontDescriptor.addingAttributes([
             .traits: [NSFontDescriptor.TraitKey.width: -0.4]
         ])
-        return NSFont(descriptor: descriptor, size: 8) ?? base
+        return NSFont(descriptor: descriptor, size: 9) ?? base
     }()
 
     // Claude sparkle mark before the bars.
